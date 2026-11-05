@@ -1,0 +1,43 @@
+while [[ "$1" ]]; do
+    if [[ "$1" =~ ^- && ! "$1" == "--" ]]; then
+        case $1 in
+            --lex | --parse | --codegen )
+                flag="$1"
+                ;;
+            * )
+                echo "Invalid flag: $1"
+                ;;
+        esac
+    else
+        file="$1"
+    fi
+    shift
+done
+
+filename=${file##*/}
+filebase=${filename%.c}
+path=${file%/*}
+if [[ ! -d ${path} ]]; then
+    if [[ ${path} == ${filename} ]]; then     # no directory provided (use pwd)
+        path="."
+    else
+        echo "Invalid Directory: ${path}"
+    fi
+fi
+
+# Preprocess file
+gcc -E -P ${path}/${filename} -o ${path}/${filebase}.i
+
+# Compile preprocessed file and output assembly file with a .s extension
+python3 mcc.py ${path}/${filebase}.i ${flag}
+exitcode=$?
+[[ -e ${path}/${filebase}.i ]] && rm ${path}/${filebase}.i
+if [[ $exitcode -ne 0 ]]; then
+    exit $exitcode
+fi
+
+# Assemble and link to produce executable
+gcc ${path}/${filebase}.s -o ${path}/${filebase}
+rm ${path}/${filebase}.s
+
+exit $exitcode
